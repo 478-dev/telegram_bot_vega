@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    command: uv run main.py
+  
+  init-db:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+    command: python -m app.populate
+    profiles:
+      - init

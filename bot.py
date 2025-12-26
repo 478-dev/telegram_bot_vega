@@ -74,10 +74,7 @@ def handle_category(call):
     
     photo_url = texts.PHOTOS.get(category[2:])
     if photo_url:
-        try:
-            bot.send_photo(call.message.chat.id, photo_url, caption=f"Пример: {category}")
-        except:
-            pass
+        bot.send_photo(call.message.chat.id, photo_url, caption=f"Пример: {category}")
     
     description = texts.DESCRIPTIONS.get(category, "")
     if description:

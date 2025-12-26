@@ -57,12 +57,12 @@ NY_POSTCARDS = [
 ]
 
 PHOTOS = {
-    "Отрядные открытки": "/app/blobs/otr.jpg",
-    "Новогодние открытки": "/app/blobs/ny.jpg",
-    "Набор смешных стикеров": "/app/blobs/stick.jpg",
-    "Набор милых стикеров": "/app/blobs/stick.jpg",
-    "Обвесы": "/app/blobs/obv.jpg",
-    "Пак мемологии": "/app/blobs/mem.jpg"
+    "Отрядные открытки": "https://photos.app.goo.gl/AB84JNDoJrXsnbkz7",
+    "Новогодние открытки": "https://photos.app.goo.gl/irReSjhPFvhfrMuo8",
+    "Набор смешных стикеров": "https://photos.app.goo.gl/fSgnpN6Kr6yKdRZC7",
+    "Набор милых стикеров": "https://photos.app.goo.gl/fSgnpN6Kr6yKdRZC7",
+    "Обвесы": "https://photos.app.goo.gl/Poan8fXAWZu5hcG59",
+    "Пак мемологии": "https://photos.app.goo.gl/uYoCHKw5rUkUdpbMA"
 }
 
 DESCRIPTIONS = {

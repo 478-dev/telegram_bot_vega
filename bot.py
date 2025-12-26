@@ -72,7 +72,7 @@ def handle_category(call):
     user_id = call.from_user.id
     user_data[user_id] = {"category": category, "cat_id": cat_id}
     
-    photo_url = texts.PHOTOS.get(category)
+    photo_url = texts.PHOTOS.get(category[2:])
     if photo_url:
         try:
             bot.send_photo(call.message.chat.id, photo_url, caption=f"Пример: {category}")

@@ -9,7 +9,6 @@ def init_db():
     conn = get_conn()
     cur = conn.cursor()
 
-    # Таблица категорий
     cur.execute("""
         CREATE TABLE IF NOT EXISTS CATEGORIES (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,7 +19,6 @@ def init_db():
         )
     """)
 
-    # Таблица позиций
     cur.execute("""
         CREATE TABLE IF NOT EXISTS POSITIONS (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,11 +28,11 @@ def init_db():
             description TEXT,
             price INTEGER NOT NULL,
             amount INTEGER NOT NULL,
+            picture TEXT,
             FOREIGN KEY (category_id) REFERENCES CATEGORIES(id)
         )
     """)
 
-    # Таблица заказов
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ORDERSS (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +44,6 @@ def init_db():
         )
     """)
 
-    # Создаем root категорию если её нет
     cur.execute("SELECT id FROM CATEGORIES WHERE id = 0")
     if not cur.fetchone():
         cur.execute("INSERT INTO CATEGORIES (id, emoji, text, description, picture) VALUES (0, NULL, 'root', NULL, NULL)")
@@ -54,7 +51,8 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Функции для работы с категориями
+# ========== КАТЕГОРИИ ==========
+
 def add_category(emoji, text, description=None, picture=None):
     conn = get_conn()
     cur = conn.cursor()
@@ -112,19 +110,18 @@ def update_category_picture(cat_id, picture):
 def delete_category(cat_id):
     conn = get_conn()
     cur = conn.cursor()
-    # Удаляем все позиции в категории
     cur.execute("DELETE FROM POSITIONS WHERE category_id = ?", (cat_id,))
-    # Удаляем саму категорию
     cur.execute("DELETE FROM CATEGORIES WHERE id = ?", (cat_id,))
     conn.commit()
     conn.close()
 
-# Функции для работы с позициями
-def add_position(category_id, emoji, text, description, price, amount):
+# ========== ПОЗИЦИИ ==========
+
+def add_position(category_id, emoji, text, description, price, amount, picture=None):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("INSERT INTO POSITIONS (category_id, emoji, text, description, price, amount) VALUES (?, ?, ?, ?, ?, ?)", 
-                (category_id, emoji, text, description, price, amount))
+    cur.execute("INSERT INTO POSITIONS (category_id, emoji, text, description, price, amount, picture) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                (category_id, emoji, text, description, price, amount, picture))
     pos_id = cur.lastrowid
     conn.commit()
     conn.close()
@@ -133,7 +130,7 @@ def add_position(category_id, emoji, text, description, price, amount):
 def get_all_positions():
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT id, category_id, emoji, text, description, price, amount FROM POSITIONS")
+    cur.execute("SELECT id, category_id, emoji, text, description, price, amount, picture FROM POSITIONS")
     positions = cur.fetchall()
     conn.close()
     return positions
@@ -141,7 +138,7 @@ def get_all_positions():
 def get_positions_by_category(cat_id):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT id, category_id, emoji, text, description, price, amount FROM POSITIONS WHERE category_id = ?", (cat_id,))
+    cur.execute("SELECT id, category_id, emoji, text, description, price, amount, picture FROM POSITIONS WHERE category_id = ?", (cat_id,))
     positions = cur.fetchall()
     conn.close()
     return positions
@@ -149,7 +146,7 @@ def get_positions_by_category(cat_id):
 def get_position(pos_id):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT id, category_id, emoji, text, description, price, amount FROM POSITIONS WHERE id = ?", (pos_id,))
+    cur.execute("SELECT id, category_id, emoji, text, description, price, amount, picture FROM POSITIONS WHERE id = ?", (pos_id,))
     position = cur.fetchone()
     conn.close()
     return position
@@ -189,6 +186,13 @@ def update_position_amount(pos_id, amount):
     conn.commit()
     conn.close()
 
+def update_position_picture(pos_id, picture):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE POSITIONS SET picture = ? WHERE id = ?", (picture, pos_id))
+    conn.commit()
+    conn.close()
+
 def delete_position(pos_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -196,7 +200,8 @@ def delete_position(pos_id):
     conn.commit()
     conn.close()
 
-# Функции для работы с заказами
+# ========== ЗАКАЗЫ ==========
+
 def add_order(position_id, user_name, user_info, payment=0):
     conn = get_conn()
     cur = conn.cursor()
@@ -222,7 +227,8 @@ def get_order(order_id):
     conn.close()
     return order
 
-# Функция для получения текста меню
+# ========== МЕНЮ ==========
+
 def get_menu_text():
     conn = get_conn()
     cur = conn.cursor()

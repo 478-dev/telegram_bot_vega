@@ -28,7 +28,7 @@ def help_command(message):
 /help - Показать эту справку
 
 🛍 Чтобы сделать заказ, нажмите кнопку "Открыть меню" и выберите товар."""
-
+    
     if str(message.chat.id) == str(ADMIN_CHAT_ID):
         help_text += """
 
@@ -41,27 +41,27 @@ def help_command(message):
 /delete_position - Удалить позицию
 /edit_position - Редактировать позицию
 /table - Экспортировать заказы в Excel"""
-
+    
     bot.send_message(message.chat.id, help_text)
 
 @bot.callback_query_handler(func=lambda call: call.data == "menu")
 def show_menu(call):
     markup = types.InlineKeyboardMarkup(row_width=2)
-
+    
     # Получаем все категории
     categories = get_all_categories()
     for cat in categories:
         cat_id, emoji, text, description, picture = cat
         display_text = f"{emoji} {text}" if emoji else text
         markup.add(types.InlineKeyboardButton(display_text, callback_data=f"cat:{cat_id}"))
-
+    
     # Получаем позиции в корне (category_id = 0)
     root_positions = get_positions_by_category(0)
     for pos in root_positions:
         pos_id, _, emoji, text, description, price, amount, picture = pos
         display_text = f"{emoji} {text}" if emoji else text
         markup.add(types.InlineKeyboardButton(display_text, callback_data=f"pos:{pos_id}"))
-
+    
     menu_text = get_menu_text()
     try:
         bot.edit_message_text(menu_text, call.message.chat.id, call.message.id, reply_markup=markup)
@@ -72,31 +72,31 @@ def show_menu(call):
 def show_category(call):
     cat_id = int(call.data.split(":")[1])
     category = get_category(cat_id)
-
+    
     if not category:
         bot.answer_callback_query(call.id, "❌ Категория не найдена")
         return
-
+    
     _, emoji, text, description, picture = category
     display_name = f"{emoji} {text}" if emoji else text
-
+    
     # Получаем позиции в категории
     positions = get_positions_by_category(cat_id)
+    
     markup = types.InlineKeyboardMarkup(row_width=2)
-
     for pos in positions:
-        pos_id, _, p_emoji, p_text, p_desc, price, amount, picture = pos
+        pos_id, _, p_emoji, p_text, p_desc, price, amount, pos_picture = pos  # ИСПРАВЛЕНО: picture -> pos_picture
         display_text = f"{p_emoji} {p_text}" if p_emoji else p_text
         markup.add(types.InlineKeyboardButton(display_text, callback_data=f"pos:{pos_id}"))
-
+    
     markup.add(types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="menu"))
-
+    
     # Формируем полное сообщение с описанием
     message_text = f"📁 Категория: {display_name}"
     if description:
         message_text += f"\n\n{description}"
     message_text += "\n\nВыберите позицию:"
-
+    
     # Если есть картинка - отправляем её с описанием в caption и клавиатурой
     if picture and os.path.exists(picture):
         try:
@@ -114,27 +114,26 @@ def show_category(call):
 def show_position(call):
     pos_id = int(call.data.split(":")[1])
     position = get_position(pos_id)
-
+    
     if not position:
         bot.answer_callback_query(call.id, "❌ Позиция не найдена")
         return
-
+    
     _, cat_id, emoji, text, description, price, amount, picture = position
-
     user_data[call.from_user.id] = {"position_id": pos_id}
-
+    
     display_text = f"{emoji} {text}" if emoji else text
     info_text = f"📦 {display_text}\n"
     if description:
         info_text += f"\n{description}\n"
-    info_text += f"\n💰 Цена: {price}₽\n📊 В наличии: {amount} шт.\n\nНапишите ваше ФИО:"
-
+    info_text += f"\n💰 Цена: {price}₽\n📊 В наличии: {amount} шт.\n\nНапишите ФИО и отряд получателя:"
+    
     markup = types.InlineKeyboardMarkup()
     if cat_id == 0:
         markup.add(types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="menu"))
     else:
         markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data=f"cat:{cat_id}"))
-
+    
     # Если есть картинка - отправляем её с описанием
     if picture and os.path.exists(picture):
         try:
@@ -151,22 +150,19 @@ def show_position(call):
 
 def get_user_name(message):
     user_id = message.from_user.id
-
     if message.text and message.text.startswith('/'):
         return
-
     if user_id not in user_data:
         return
-
+    
     user_data[user_id]["user_name"] = message.text
-
     position = get_position(user_data[user_id]["position_id"])
     _, _, emoji, text, description, price, _, _ = position
     display_text = f"{emoji} {text}" if emoji else text
-
+    
     order_id = add_order(user_data[user_id]["position_id"], message.text, "", 0)
     user_data[user_id]["order_id"] = order_id
-
+    
     # Уведомление админу
     admin_msg = f"📦 Новый заказ #{order_id}\n\n"
     admin_msg += f"Позиция: {display_text}\n"
@@ -174,7 +170,7 @@ def get_user_name(message):
     admin_msg += f"Покупатель: {message.text}\n"
     admin_msg += f"Оплата: ❌ Нет"
     bot.send_message(ADMIN_CHAT_ID, admin_msg)
-
+    
     payment_text = f"{texts.PAYMENT_INSTRUCTIONS}\n\n{texts.ASK_PAYMENT_SCREENSHOT}"
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="menu"))
@@ -186,18 +182,19 @@ def handle_photo(message):
     print(f"📸 Получено фото от chat_id={chat_id}")
     print(f"📊 Текущий user_data: {user_data}")
     print(f"🔍 chat_id in user_data: {chat_id in user_data}")
+    
     if chat_id in user_data:
         print(f"🔍 Содержимое user_data[{chat_id}]: {user_data[chat_id]}")
-
+    
     # Проверка на команду edit_category (изменение картинки)
     if chat_id in user_data and "edit_category_picture" in user_data[chat_id]:
         print(f"✅ Обрабатываем изменение картинки категории")
         cat_id = user_data[chat_id]["edit_category_picture"]
-
+        
         # Получаем старую картинку
         category = get_category(cat_id)
         old_picture = category[4] if category else None
-
+        
         # Удаляем старую картинку если была
         if old_picture and os.path.exists(old_picture):
             try:
@@ -205,31 +202,29 @@ def handle_photo(message):
                 print(f"🗑️ Удалена старая картинка: {old_picture}")
             except Exception as e:
                 print(f"⚠️ Не удалось удалить старую картинку: {e}")
-
+        
         # Сохраняем новую картинку
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-
         filename = f"./data/category_{cat_id}.jpg"
         with open(filename, 'wb') as new_file:
             new_file.write(downloaded_file)
-
         print(f"💾 Сохранена новая картинка: {filename}")
-
+        
         update_category_picture(cat_id, filename)
         bot.send_message(message.chat.id, "✅ Картинка категории обновлена!")
         del user_data[chat_id]["edit_category_picture"]
         return
-
+    
     # Проверка на команду edit_position (изменение картинки позиции)
     if chat_id in user_data and "edit_position_picture" in user_data[chat_id]:
         print(f"✅ Обрабатываем изменение картинки позиции")
         pos_id = user_data[chat_id]["edit_position_picture"]
-
+        
         # Получаем старую картинку
         position = get_position(pos_id)
         old_picture = position[7] if position else None
-
+        
         # Удаляем старую картинку если была
         if old_picture and os.path.exists(old_picture):
             try:
@@ -237,36 +232,32 @@ def handle_photo(message):
                 print(f"🗑️ Удалена старая картинка: {old_picture}")
             except Exception as e:
                 print(f"⚠️ Не удалось удалить старую картинку: {e}")
-
+        
         # Сохраняем новую картинку
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-
         filename = f"./data/position_{pos_id}.jpg"
         with open(filename, 'wb') as new_file:
             new_file.write(downloaded_file)
-
         print(f"💾 Сохранена новая картинка: {filename}")
-
+        
         update_position_picture(pos_id, filename)
         bot.send_message(message.chat.id, "✅ Картинка позиции обновлена!")
         del user_data[chat_id]["edit_position_picture"]
         return
-
+    
     # Обработка оплаты
     if chat_id in user_data and "order_id" in user_data[chat_id]:
         order_id = user_data[chat_id]["order_id"]
-
         update_order_payment(order_id, 1)
         order = get_order(order_id)
-
+        
         bot.forward_message(ADMIN_CHAT_ID, message.chat.id, message.id)
         bot.send_message(ADMIN_CHAT_ID, f"✅ Оплата для заказа #{order_id}\nПокупатель: {order[3]}")
-
+        
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton(texts.ORDER_MORE_BUTTON_TEXT, callback_data="menu"))
         bot.send_message(message.chat.id, texts.SUCCESS_MESSAGE, reply_markup=markup)
-
         del user_data[chat_id]
 
 # ========== АДМИНИСТРАТИВНЫЕ КОМАНДЫ ==========
@@ -275,12 +266,13 @@ def is_admin(chat_id):
     return str(chat_id) == str(ADMIN_CHAT_ID)
 
 # ===== /edit_menu =====
+
 @bot.message_handler(commands=['edit_menu'])
 def edit_menu(message):
     if not is_admin(message.chat.id):
         bot.send_message(message.chat.id, "❌ У вас нет прав на выполнение этой команды")
         return
-
+    
     current_text = get_menu_text()
     bot.send_message(message.chat.id, f"Текущий текст меню:\n\n{current_text}\n\n📝 Отправьте новый текст меню:")
     bot.register_next_step_handler(message, process_edit_menu)
@@ -292,12 +284,13 @@ def process_edit_menu(message):
     bot.send_message(message.chat.id, "✅ Текст меню обновлен!")
 
 # ===== /add_category =====
+
 @bot.message_handler(commands=['add_category'])
 def add_category_command(message):
     if not is_admin(message.chat.id):
         bot.send_message(message.chat.id, "❌ У вас нет прав на выполнение этой команды")
         return
-
+    
     bot.send_message(message.chat.id, "📝 Введите имя категории (можно с эмодзи в начале):")
     bot.register_next_step_handler(message, process_category_name)
 
@@ -311,14 +304,13 @@ def process_category_name(message):
 def process_category_description(message):
     if message.text and message.text.startswith('/'):
         return
-
+    
     name = user_data[message.chat.id]["new_category_name"]
     description = message.text
-
+    
     # Разделяем эмодзи и текст
     emoji = None
     text = name
-
     if name:
         first_char = name[0]
         if ord(first_char) > 127:
@@ -327,25 +319,25 @@ def process_category_description(message):
                 emoji_end += 1
             emoji = name[:emoji_end].strip()
             text = name[emoji_end:].strip()
-
+    
     cat_id = add_category(emoji, text, description, None)
     display_name = f"{emoji} {text}" if emoji else text
     bot.send_message(message.chat.id, f"✅ Категория '{display_name}' создана с ID {cat_id}!")
     del user_data[message.chat.id]
 
 # ===== /delete_category =====
+
 @bot.message_handler(commands=['delete_category'])
 def delete_category_command(message):
     if not is_admin(message.chat.id):
         bot.send_message(message.chat.id, "❌ У вас нет прав на выполнение этой команды")
         return
-
+    
     categories = get_all_categories()
-
     if not categories:
         bot.send_message(message.chat.id, "❌ Нет категорий для удаления")
         return
-
+    
     markup = types.InlineKeyboardMarkup(row_width=1)
     for cat in categories:
         cat_id, emoji, text, description, picture = cat
@@ -354,20 +346,20 @@ def delete_category_command(message):
         if picture and os.path.exists(picture):
             display_text += " 🖼"
         markup.add(types.InlineKeyboardButton(display_text, callback_data=f"delcat:{cat_id}"))
+    
     markup.add(types.InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
-
-    bot.send_message(message.chat.id, "⚠️ Выберите категорию для удаления (будут удалены все вложенные позиции и картинка):", 
+    bot.send_message(message.chat.id, "⚠️ Выберите категорию для удаления (будут удалены все вложенные позиции и картинка):",
                      reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("delcat:"))
 def process_delete_category(call):
     cat_id = int(call.data.split(":")[1])
     category = get_category(cat_id)
-
+    
     if category:
         _, emoji, text, description, picture = category
         display_text = f"{emoji} {text}" if emoji else text
-
+        
         # Удаляем картинку если есть
         if picture and os.path.exists(picture):
             try:
@@ -375,29 +367,27 @@ def process_delete_category(call):
                 print(f"🗑️ Удалена картинка категории: {picture}")
             except Exception as e:
                 print(f"⚠️ Не удалось удалить картинку: {e}")
-
+        
         delete_category(cat_id)
         bot.answer_callback_query(call.id, f"✅ Категория удалена!")
-        bot.edit_message_text(f"✅ Категория '{display_text}' удалена со всеми вложенными позициями и картинкой", 
-                             call.message.chat.id, call.message.id)
+        bot.edit_message_text(f"✅ Категория '{display_text}' удалена со всеми вложенными позициями и картинкой",
+                              call.message.chat.id, call.message.id)
     else:
         bot.answer_callback_query(call.id, "❌ Категория не найдена")
 
-# Продолжение следует...
-
 # ===== /edit_category =====
+
 @bot.message_handler(commands=['edit_category'])
 def edit_category_command(message):
     if not is_admin(message.chat.id):
         bot.send_message(message.chat.id, "❌ У вас нет прав на выполнение этой команды")
         return
-
+    
     categories = get_all_categories()
-
     if not categories:
         bot.send_message(message.chat.id, "❌ Нет категорий для редактирования")
         return
-
+    
     markup = types.InlineKeyboardMarkup(row_width=1)
     for cat in categories:
         cat_id, emoji, text, description, picture = cat
@@ -406,35 +396,35 @@ def edit_category_command(message):
         if picture and os.path.exists(picture):
             display_text += " 🖼"
         markup.add(types.InlineKeyboardButton(display_text, callback_data=f"editcat:{cat_id}"))
+    
     markup.add(types.InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
-
     bot.send_message(message.chat.id, "Выберите категорию для редактирования:", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("editcat:") and len(call.data.split(":")) == 2)
 def show_edit_category_menu(call):
     cat_id = int(call.data.split(":")[1])
     category = get_category(cat_id)
-
+    
     if not category:
         bot.answer_callback_query(call.id, "❌ Категория не найдена")
         return
-
+    
     _, emoji, text, description, picture = category
     display_name = f"{emoji} {text}" if emoji else text
-
+    
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("✏️ Изменить имя", callback_data=f"editcatname:{cat_id}"),
         types.InlineKeyboardButton("📝 Изменить описание", callback_data=f"editcatdesc:{cat_id}"),
         types.InlineKeyboardButton("🖼 Изменить картинку", callback_data=f"editcatpic:{cat_id}")
     )
-
+    
     # Добавляем кнопку удаления картинки только если она есть
     if picture and os.path.exists(picture):
         markup.add(types.InlineKeyboardButton("🗑 Удалить картинку", callback_data=f"delcatpic:{cat_id}"))
-
+    
     markup.add(types.InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
-
+    
     info = f"Редактирование категории: {display_name}\n"
     if description:
         info += f"Описание: {description}\n"
@@ -442,8 +432,8 @@ def show_edit_category_menu(call):
         info += "Картинка: ✅ Есть"
     else:
         info += "Картинка: ❌ Нет"
-
-    bot.edit_message_text(f"{info}\n\nЧто вы хотите изменить?", 
+    
+    bot.edit_message_text(f"{info}\n\nЧто вы хотите изменить?",
                          call.message.chat.id, call.message.id, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("editcatname:"))
@@ -455,14 +445,13 @@ def edit_category_name(call):
 def process_edit_category_name(message):
     if message.text and message.text.startswith('/'):
         return
-
+    
     cat_id = user_data[message.chat.id]["edit_category_name"]
     name = message.text
-
+    
     # Разделяем эмодзи и текст
     emoji = None
     text = name
-
     if name:
         first_char = name[0]
         if ord(first_char) > 127:
@@ -471,7 +460,7 @@ def process_edit_category_name(message):
                 emoji_end += 1
             emoji = name[:emoji_end].strip()
             text = name[emoji_end:].strip()
-
+    
     if emoji:
         update_category_emoji(cat_id, emoji)
     update_category_text(cat_id, text)
@@ -491,7 +480,7 @@ def edit_category_description(call):
 def process_edit_category_description(message):
     if message.text and message.text.startswith('/'):
         return
-
+    
     cat_id = user_data[message.chat.id]["edit_category_description"]
     update_category_description(cat_id, message.text)
     bot.send_message(message.chat.id, "✅ Описание категории обновлено!")
@@ -514,10 +503,9 @@ def edit_category_picture(call):
 def delete_category_picture(call):
     cat_id = int(call.data.split(":")[1])
     category = get_category(cat_id)
-
+    
     if category:
         picture = category[4]
-
         # Удаляем картинку если есть
         if picture and os.path.exists(picture):
             try:
@@ -525,7 +513,7 @@ def delete_category_picture(call):
                 print(f"🗑️ Удалена картинка: {picture}")
                 update_category_picture(cat_id, None)
                 bot.answer_callback_query(call.id, "✅ Картинка удалена!")
-                bot.edit_message_text(f"✅ Картинка категории удалена", 
+                bot.edit_message_text(f"✅ Картинка категории удалена",
                                      call.message.chat.id, call.message.id)
             except Exception as e:
                 bot.answer_callback_query(call.id, f"❌ Ошибка: {e}")
@@ -535,32 +523,31 @@ def delete_category_picture(call):
         bot.answer_callback_query(call.id, "❌ Категория не найдена")
 
 # ===== /add_position =====
+
 @bot.message_handler(commands=['add_position'])
 def add_position_command(message):
     if not is_admin(message.chat.id):
         bot.send_message(message.chat.id, "❌ У вас нет прав на выполнение этой команды")
         return
-
+    
     markup = types.InlineKeyboardMarkup(row_width=1)
-
     # Добавляем опцию "В корень" (без категории)
     markup.add(types.InlineKeyboardButton("📦 Добавить в корень (без категории)", callback_data="addpos:0"))
-
+    
     categories = get_all_categories()
     for cat in categories:
         cat_id, emoji, text, description, picture = cat
         display_text = f"{emoji} {text}" if emoji else text
         markup.add(types.InlineKeyboardButton(display_text, callback_data=f"addpos:{cat_id}"))
-
+    
     markup.add(types.InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
-
     bot.send_message(message.chat.id, "В какую категорию добавить позицию?", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("addpos:"))
 def process_add_position_category(call):
     cat_id = int(call.data.split(":")[1])
     user_data[call.message.chat.id] = {"new_position_category": cat_id}
-
+    
     if cat_id == 0:
         bot.send_message(call.message.chat.id, "📝 Введите название позиции (можно с эмодзи в начале):")
     else:
@@ -568,7 +555,7 @@ def process_add_position_category(call):
         _, emoji, text, _, _ = category
         display_name = f"{emoji} {text}" if emoji else text
         bot.send_message(call.message.chat.id, f"📝 Добавление позиции в категорию: {display_name}\n\nВведите название позиции (можно с эмодзи):")
-
+    
     bot.register_next_step_handler(call.message, process_position_name)
 
 def process_position_name(message):
@@ -588,7 +575,6 @@ def process_position_description(message):
 def process_position_price(message):
     if message.text and message.text.startswith('/'):
         return
-
     try:
         price = int(message.text)
         user_data[message.chat.id]["new_position_price"] = price
@@ -601,19 +587,16 @@ def process_position_price(message):
 def process_position_amount(message):
     if message.text and message.text.startswith('/'):
         return
-
     try:
         amount = int(message.text)
-
         cat_id = user_data[message.chat.id]["new_position_category"]
         name = user_data[message.chat.id]["new_position_name"]
         description = user_data[message.chat.id]["new_position_description"]
         price = user_data[message.chat.id]["new_position_price"]
-
+        
         # Разделяем эмодзи и текст
         emoji = None
         text = name
-
         if name:
             first_char = name[0]
             if ord(first_char) > 127:
@@ -622,7 +605,7 @@ def process_position_amount(message):
                     emoji_end += 1
                 emoji = name[:emoji_end].strip()
                 text = name[emoji_end:].strip()
-
+        
         pos_id = add_position(cat_id, emoji, text, description, price, amount, None)
         display_name = f"{emoji} {text}" if emoji else text
         bot.send_message(message.chat.id, f"✅ Позиция '{display_name}' создана с ID {pos_id}!")
@@ -632,17 +615,17 @@ def process_position_amount(message):
         bot.register_next_step_handler(message, process_position_amount)
 
 # ===== /delete_position =====
+
 @bot.message_handler(commands=['delete_position'])
 def delete_position_command(message):
     if not is_admin(message.chat.id):
         bot.send_message(message.chat.id, "❌ У вас нет прав на выполнение этой команды")
         return
-
     show_position_tree(message, delete_mode=True)
 
 def show_position_tree(message, delete_mode=False):
     markup = types.InlineKeyboardMarkup(row_width=1)
-
+    
     # Показываем позиции в корне
     positions = get_positions_by_category(0)
     if positions:
@@ -652,7 +635,7 @@ def show_position_tree(message, delete_mode=False):
             display_text = f"{emoji} {text}" if emoji else text
             prefix = "delpos:" if delete_mode else "editpos:"
             markup.add(types.InlineKeyboardButton(display_text, callback_data=f"{prefix}{p_id}"))
-
+    
     # Показываем категории
     categories = get_all_categories()
     if categories:
@@ -661,9 +644,8 @@ def show_position_tree(message, delete_mode=False):
             cat_id, emoji, text, description, picture = cat
             display_text = f"{emoji} {text}" if emoji else text
             markup.add(types.InlineKeyboardButton(display_text, callback_data=f"showcat:{cat_id}:{int(delete_mode)}"))
-
+    
     markup.add(types.InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
-
     action = "удаления" if delete_mode else "редактирования"
     bot.send_message(message.chat.id, f"Выберите позицию для {action}:", reply_markup=markup)
 
@@ -672,42 +654,40 @@ def show_category_positions(call):
     parts = call.data.split(":")
     cat_id = int(parts[1])
     delete_mode = bool(int(parts[2]))
-
+    
     category = get_category(cat_id)
     if not category:
         bot.answer_callback_query(call.id, "❌ Категория не найдена")
         return
-
+    
     _, emoji, text, _, _ = category
     display_name = f"{emoji} {text}" if emoji else text
-
+    
     positions = get_positions_by_category(cat_id)
-
     if not positions:
         bot.answer_callback_query(call.id, "❌ В этой категории нет позиций")
         return
-
+    
     markup = types.InlineKeyboardMarkup(row_width=1)
     for pos in positions:
         p_id, _, emoji, text, description, _, _, picture = pos
         display_text = f"{emoji} {text}" if emoji else text
         prefix = "delpos:" if delete_mode else "editpos:"
         markup.add(types.InlineKeyboardButton(display_text, callback_data=f"{prefix}{p_id}"))
-
+    
     markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="cancel"))
-
-    bot.edit_message_text(f"Позиции в категории '{display_name}':", 
+    bot.edit_message_text(f"Позиции в категории '{display_name}':",
                          call.message.chat.id, call.message.id, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("delpos:"))
 def process_delete_position(call):
     pos_id = int(call.data.split(":")[1])
     position = get_position(pos_id)
-
+    
     if position:
         _, _, emoji, text, description, _, _, picture = position
         display_text = f"{emoji} {text}" if emoji else text
-
+        
         # Удаляем картинку если есть
         if picture and os.path.exists(picture):
             try:
@@ -715,27 +695,27 @@ def process_delete_position(call):
                 print(f"🗑️ Удалена картинка позиции: {picture}")
             except Exception as e:
                 print(f"⚠️ Не удалось удалить картинку: {e}")
-
+        
         delete_position(pos_id)
         bot.answer_callback_query(call.id, f"✅ Позиция удалена!")
-        bot.edit_message_text(f"✅ Позиция '{display_text}' удалена", 
+        bot.edit_message_text(f"✅ Позиция '{display_text}' удалена",
                              call.message.chat.id, call.message.id)
     else:
         bot.answer_callback_query(call.id, "❌ Позиция не найдена")
 
 # ===== /edit_position =====
+
 @bot.message_handler(commands=['edit_position'])
 def edit_position_command(message):
     if not is_admin(message.chat.id):
         bot.send_message(message.chat.id, "❌ У вас нет прав на выполнение этой команды")
         return
-
+    
     positions = get_all_positions()
-
     if not positions:
         bot.send_message(message.chat.id, "❌ Нет позиций для редактирования")
         return
-
+    
     markup = types.InlineKeyboardMarkup(row_width=1)
     for pos in positions:
         pos_id, _, emoji, text, description, _, _, picture = pos
@@ -744,22 +724,22 @@ def edit_position_command(message):
         if picture and os.path.exists(picture):
             display_text += " 🖼"
         markup.add(types.InlineKeyboardButton(display_text, callback_data=f"editpos:{pos_id}"))
+    
     markup.add(types.InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
-
     bot.send_message(message.chat.id, "Выберите позицию для редактирования:", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("editpos:") and len(call.data.split(":")) == 2)
 def show_edit_position_menu(call):
     pos_id = int(call.data.split(":")[1])
     position = get_position(pos_id)
-
+    
     if not position:
         bot.answer_callback_query(call.id, "❌ Позиция не найдена")
         return
-
+    
     _, _, emoji, text, description, price, amount, picture = position
     display_name = f"{emoji} {text}" if emoji else text
-
+    
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("✏️ Изменить имя", callback_data=f"editposname:{pos_id}"),
@@ -768,19 +748,19 @@ def show_edit_position_menu(call):
         types.InlineKeyboardButton("📊 Изменить количество", callback_data=f"editposamount:{pos_id}"),
         types.InlineKeyboardButton("🖼 Изменить картинку", callback_data=f"editpospic:{pos_id}")
     )
-
+    
     # Добавляем кнопку удаления картинки если она есть
     if picture and os.path.exists(picture):
         markup.add(types.InlineKeyboardButton("🗑 Удалить картинку", callback_data=f"delpospic:{pos_id}"))
-
+    
     markup.add(types.InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
-
+    
     info = f"Редактирование позиции: {display_name}\n"
     if description:
         info += f"Описание: {description}\n"
     info += f"Цена: {price}₽\n"
     info += f"Количество: {amount} шт."
-
+    
     # Показываем картинку если есть
     if picture and os.path.exists(picture):
         try:
@@ -790,8 +770,8 @@ def show_edit_position_menu(call):
             info += "\n🖼 Картинка: ✅ Есть"
     else:
         info += "\n🖼 Картинка: ❌ Нет"
-
-    bot.edit_message_text(f"{info}\n\nЧто вы хотите изменить?", 
+    
+    bot.edit_message_text(f"{info}\n\nЧто вы хотите изменить?",
                          call.message.chat.id, call.message.id, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("editposname:"))
@@ -803,14 +783,13 @@ def edit_position_name(call):
 def process_edit_position_name(message):
     if message.text and message.text.startswith('/'):
         return
-
+    
     pos_id = user_data[message.chat.id]["edit_position_name"]
     name = message.text
-
+    
     # Разделяем эмодзи и текст
     emoji = None
     text = name
-
     if name:
         first_char = name[0]
         if ord(first_char) > 127:
@@ -819,7 +798,7 @@ def process_edit_position_name(message):
                 emoji_end += 1
             emoji = name[:emoji_end].strip()
             text = name[emoji_end:].strip()
-
+    
     if emoji:
         update_position_emoji(pos_id, emoji)
     update_position_text(pos_id, text)
@@ -839,7 +818,7 @@ def edit_position_description(call):
 def process_edit_position_description(message):
     if message.text and message.text.startswith('/'):
         return
-
+    
     pos_id = user_data[message.chat.id]["edit_position_description"]
     update_position_description(pos_id, message.text)
     bot.send_message(message.chat.id, "✅ Описание позиции обновлено!")
@@ -858,7 +837,6 @@ def edit_position_price(call):
 def process_edit_position_price(message):
     if message.text and message.text.startswith('/'):
         return
-
     try:
         price = int(message.text)
         pos_id = user_data[message.chat.id]["edit_position_price"]
@@ -882,7 +860,6 @@ def edit_position_amount(call):
 def process_edit_position_amount(message):
     if message.text and message.text.startswith('/'):
         return
-
     try:
         amount = int(message.text)
         pos_id = user_data[message.chat.id]["edit_position_amount"]
@@ -910,10 +887,9 @@ def edit_position_picture(call):
 def delete_position_picture(call):
     pos_id = int(call.data.split(":")[1])
     position = get_position(pos_id)
-
+    
     if position:
         picture = position[7]
-
         # Удаляем картинку если есть
         if picture and os.path.exists(picture):
             try:
@@ -921,7 +897,7 @@ def delete_position_picture(call):
                 print(f"🗑️ Удалена картинка: {picture}")
                 update_position_picture(pos_id, None)
                 bot.answer_callback_query(call.id, "✅ Картинка удалена!")
-                bot.edit_message_text(f"✅ Картинка позиции удалена", 
+                bot.edit_message_text(f"✅ Картинка позиции удалена",
                                      call.message.chat.id, call.message.id)
             except Exception as e:
                 bot.answer_callback_query(call.id, f"❌ Ошибка: {e}")
@@ -931,24 +907,24 @@ def delete_position_picture(call):
         bot.answer_callback_query(call.id, "❌ Позиция не найдена")
 
 # ===== /table =====
+
 @bot.message_handler(commands=['table'])
 def send_table(message):
     if not is_admin(message.chat.id):
         bot.send_message(message.chat.id, "❌ У вас нет прав на выполнение этой команды")
         return
-
+    
     try:
         filepath = "/tmp/orders.xlsx"
         export_to_xlsx(filepath)
-
         with open(filepath, 'rb') as file:
             bot.send_document(message.chat.id, file, caption="📊 Отчет по заказам")
-
         os.remove(filepath)
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Ошибка при экспорте: {str(e)}")
 
 # ===== Вспомогательные обработчики =====
+
 @bot.callback_query_handler(func=lambda call: call.data == "cancel")
 def cancel(call):
     bot.edit_message_text("❌ Действие отменено", call.message.chat.id, call.message.id)
